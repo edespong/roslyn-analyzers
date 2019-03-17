@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.PerformanceSensitiveAnalyzers;
 using Test.Utilities;
 using Xunit;
 using VerifyCS = Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers.UnitTests.CSharpPerformanceCodeFixVerifier<
-    Microsoft.CodeAnalysis.CSharp.PerformanceSensitiveAnalyzers.TypeConversionAllocationAnalyzer1,
+    Microsoft.CodeAnalysis.CSharp.PerformanceSensitiveAnalyzers.TypeConversionAllocationAnalyzer,
     Microsoft.CodeAnalysis.Testing.EmptyCodeFixProvider>;
 
 namespace Microsoft.CodeAnalysis.PerformanceSensitive.Analyzers.UnitTests
@@ -42,7 +42,7 @@ public class MyObject
         }
 
         [Fact]
-        public async Task TypeConversionAllocation_ArgumentSyntax_ClassWithDelegates()
+        public async Task TypeConversionAllocation_Argument_ClassWithDelegates()
         {
             var sampleProgram =
 @"using System;
@@ -54,8 +54,8 @@ public class MyClass
     public void Testing()
     {
         var @class = new MyClass();
-        @class.ProcessFunc(fooObjCall); // implicit, so Allocation
-        @class.ProcessFunc(new Func<object, string>(fooObjCall)); // Explicit, so NO Allocation
+        @class.ProcessFunc(fooObjCall);
+        @class.ProcessFunc(new Func<object, string>(fooObjCall));
     }
 
     public void ProcessFunc(Func<object, string> func)
@@ -66,11 +66,11 @@ public class MyClass
 }";
             await VerifyCS.VerifyAnalyzerAsync(sampleProgram,
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(10, 28),
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(11, 29));
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(11, 28));
         }
 
         [Fact]
-        public async Task TypeConversionAllocation_ArgumentSyntax_StructWithDelegates()
+        public async Task TypeConversionAllocation_Argument_StructWithDelegates()
         {
             var sampleProgram =
 @"using System;
@@ -82,8 +82,8 @@ public struct MyStruct
     public void Testing()
     {
         var @struct = new MyStruct();
-        @struct.ProcessFunc(fooObjCall); // implicit, so Allocation
-        @struct.ProcessFunc(new Func<object, string>(fooObjCall)); // Explicit, so NO Allocation
+        @struct.ProcessFunc(fooObjCall);
+        @struct.ProcessFunc(new Func<object, string>(fooObjCall));
     }
 
     public void ProcessFunc(Func<object, string> func)
@@ -92,10 +92,12 @@ public struct MyStruct
 
     private string fooObjCall(object obj) => null;
 }";
+
             await VerifyCS.VerifyAnalyzerAsync(sampleProgram,
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(10, 28),
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(27, 29),
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(27, 29));
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(10, 29),
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(10, 29),
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(11, 29),
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(11, 54));
         }
 
         [Fact]
@@ -200,9 +202,9 @@ public class MyClass
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.ValueTypeToReferenceTypeConversionRule).WithLocation(10, 26),
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.ValueTypeToReferenceTypeConversionRule).WithLocation(13, 18));
         }
-        /*
+
         [Fact]
-        public async Task TypeConversionAllocation_BinaryExpressionSyntax_WithDelegates()
+        public async Task TypeConversionAllocation_BinaryExpression_ClassWithDelegates()
         {
             var sampleProgram =
         @"using System;
@@ -214,24 +216,8 @@ public class MyClass
     public void Testing()
     {
         Func<object, string> temp = null;
-        var result1 = temp ?? fooObjCall; // implicit, so Allocation
-        var result2 = temp ?? new Func<object, string>(fooObjCall); // Explicit, so NO Allocation
-    }
-
-    private string fooObjCall(object obj)
-    {
-        return obj.ToString();
-    }
-}
-
-public struct MyStruct
-{
-    [PerformanceSensitive(""uri"")]
-    public void Testing()
-    {
-        Func<object, string> temp = null;
-        var result1 = temp ?? fooObjCall; // implicit, so Allocation
-        var result2 = temp ?? new Func<object, string>(fooObjCall); // Explicit, so NO Allocation
+        var result1 = temp ?? fooObjCall;
+        var result2 = temp ?? new Func<object, string>(fooObjCall);
     }
 
     private string fooObjCall(object obj)
@@ -240,13 +226,41 @@ public struct MyStruct
     }
 }";
 
-
             await VerifyCS.VerifyAnalyzerAsync(sampleProgram,
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(10, 31),
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(26, 31),
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(26, 31));
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(11, 31));
         }
-        */
+
+        [Fact]
+        public async Task TypeConversionAllocation_BinaryExpression_StructWithDelegates()
+        {
+            var sampleProgram =
+        @"using System;
+using Roslyn.Utilities;
+
+public struct MyStruct
+{
+    [PerformanceSensitive(""uri"")]
+    public void Testing()
+    {
+        Func<object, string> temp = null;
+        var result1 = temp ?? fooObjCall;
+        var result2 = temp ?? new Func<object, string>(fooObjCall);
+    }
+
+    private string fooObjCall(object obj)
+    {
+        return obj.ToString();
+    }
+}";
+
+            await VerifyCS.VerifyAnalyzerAsync(sampleProgram,
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(10, 31),
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(10, 31),
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(11, 31),
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(11, 56));
+        }
+
         [Fact]
         public async Task TypeConversionAllocation_EqualsValueClause()
         {
@@ -272,53 +286,62 @@ public class MyClass
             await VerifyCS.VerifyAnalyzerAsync(sampleProgram,
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.ValueTypeToReferenceTypeConversionRule).WithLocation(9, 25));
         }
-        /*
+
         [Fact]
-        public async Task TypeConversionAllocation_EqualsValueClauseSyntax_WithDelegates()
+        public async Task TypeConversionAllocation_EqualsValueClause_ClassWithDelegates()
         {
             var sampleProgram =
-        @"using System;
-        using Roslyn.Utilities;
+@"using System;
+using Roslyn.Utilities;
 
-        public class MyClass
-        {
-        [PerformanceSensitive(""uri"")]
-        public void Testing()
-        {
-        Func<object, string> func2 = fooObjCall; // implicit, so Allocation
-        Func<object, string> func1 = new Func<object, string>(fooObjCall); // Explicit, so NO Allocation
-        }
+public class MyClass
+{
+    [PerformanceSensitive(""uri"")]
+    public void Testing()
+    {
+        Func<object, string> func2 = fooObjCall;
+        Func<object, string> func1 = new Func<object, string>(fooObjCall);
+    }
 
-        private string fooObjCall(object obj)
-        {
+    private string fooObjCall(object obj)
+    {
         return obj.ToString();
-        }
-        }
-
-        public struct MyStruct
-        {
-        [PerformanceSensitive(""uri"")]
-        public void Testing()
-        {
-        Func<object, string> func2 = fooObjCall; // implicit, so Allocation
-        Func<object, string> func1 = new Func<object, string>(fooObjCall); // Explicit, so NO Allocation
-        }
-
-        private string fooObjCall(object obj)
-        {
-        return obj.ToString();
-        }
-        }";
+    }
+}";
 
             await VerifyCS.VerifyAnalyzerAsync(sampleProgram,
-                // Test0.cs(9,38): warning HAA0603: This will allocate a delegate instance
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(9, 38),
-                // Test0.cs(24,38): warning HAA0603: This will allocate a delegate instance
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(24, 38),
-                // Test0.cs(24,38): warning HAA0602: Struct instance method being used for delegate creation, this will result in a boxing instruction
-                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(24, 38));
+                VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(10, 38));
         }
-        */
+
+        [Fact]
+        public async Task TypeConversionAllocation_EqualsValueClause_StructWithDelegates()
+        {
+            var sampleProgram =
+@"using System;
+using Roslyn.Utilities;
+
+public struct MyStruct
+{
+    [PerformanceSensitive(""uri"")]
+    public void Testing()
+    {
+        Func<object, string> func2 = fooObjCall;
+        Func<object, string> func1 = new Func<object, string>(fooObjCall);
+    }
+
+    private string fooObjCall(object obj)
+    {
+        return obj.ToString();
+    }
+}";
+            await VerifyCS.VerifyAnalyzerAsync(sampleProgram,
+    VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(9, 38),
+    VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(9, 38),
+    VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(10, 38),
+    VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(10, 63));
+        }
+
         [Fact]
         [WorkItem(2, "https://github.com/mjsabby/RoslynClrHeapAllocationAnalyzer/issues/2")]
         public async Task TypeConversionAllocation_EqualsValueClause_ExplicitMethodGroupAllocation_Bug()
@@ -360,7 +383,7 @@ public struct MyStruct
         }
 
         [Fact]
-        public async Task TypeConversionAllocation_ConditionalExpressionSyntax()
+        public async Task TypeConversionAllocation_ConditionalExpression()
         {
             var sampleProgram =
 @"using System;
@@ -382,7 +405,7 @@ public class MyClass
         }
 
         [Fact]
-        public async Task TypeConversionAllocation_CastExpressionSyntax()
+        public async Task TypeConversionAllocation_CastExpression()
         {
             var sampleProgram =
 @"using System;
@@ -404,7 +427,7 @@ public class MyClass
 
 
         [Fact]
-        public async Task TypeConversionAllocation_ArgumentWithoutImplicitStringCastOperator()
+        public async Task TypeConversionAllocation_Argument_WithoutImplicitStringCastOperator()
         {
             const string programWithoutImplicitCastOperator = @"
 using System;
@@ -424,7 +447,7 @@ public struct AStruct
         }
 
         [Fact]
-        public async Task TypeConversionAllocation_ArgumentWithImplicitStringCastOperator()
+        public async Task TypeConversionAllocation_Argument_WithImplicitStringCastOperator()
         {
             const string programWithImplicitCastOperator = @"
 using System;
@@ -531,13 +554,13 @@ public void TypeConversionAllocation_InterpolatedStringWithString_NoWarning()
     Assert.Empty(info.Allocations);
 }
 #endif
-        
+
         [Theory]
         [InlineData(@"private readonly System.Func<string, bool> fileExists =        System.IO.File.Exists;")]
         [InlineData(@"private System.Func<string, bool> fileExists { get; } =        System.IO.File.Exists;")]
         [InlineData(@"private static System.Func<string, bool> fileExists { get; } = System.IO.File.Exists;")]
         [InlineData(@"private static readonly System.Func<string, bool> fileExists = System.IO.File.Exists;")]
-        public async Task TypeConversionAllocation_DelegateAssignmentToReadonly_DoNotWarn(string snippet)
+        public async Task TypeConversionAllocation_DelegateAssignmentToReadonly(string snippet)
         {
             var source = $@"
 using System;
@@ -552,7 +575,7 @@ class Program
             await VerifyCS.VerifyAnalyzerAsync(source,
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(8, 68));
         }
-        
+
         [Fact]
         public async Task TypeConversionAllocation_ExpressionBodiedPropertyBoxing_WithBoxing()
         {
@@ -617,7 +640,7 @@ class Program
     void Function(int i) { } 
 
     [PerformanceSensitive(""uri"")]
-    Action<int> Obj => new Action<int>(Function); // Note: changed logic..
+    Action<int> Obj => new Action<int>(Function);
 }";
 
             await VerifyCS.VerifyAnalyzerAsync(snippet,
@@ -644,7 +667,7 @@ public class MyClass
             await VerifyCS.VerifyAnalyzerAsync(source,
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.ValueTypeToReferenceTypeConversionRule).WithLocation(11, 27));
         }
-        
+
         [Fact]
         [WorkItem(7995606, "http://stackoverflow.com/questions/7995606/boxing-occurrence-in-c-sharp")]
         public async Task Creating_delegate_from_value_type_instance_method()
@@ -666,6 +689,23 @@ public class MyClass
             await VerifyCS.VerifyAnalyzerAsync(source,
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule).WithLocation(12, 22),
                 VerifyCS.Diagnostic(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule).WithLocation(12, 22));
+        }
+
+        [Fact]
+        [WorkItem(66, "https://github.com/Microsoft/RoslynClrHeapAllocationAnalyzer/issues/66")]
+        public async void TypeConversionAllocation_ForwardingActionOnStruct_DoNotWarn()
+        {
+            const string sampleProgram = @"
+using System;
+using Roslyn.Utilities;
+
+struct Foo {
+    [PerformanceSensitive(""uri"")]
+    void Perform(Action process) { Forward(process); }
+    void Forward(Action process) { process(); }
+}";
+
+            await VerifyCS.VerifyAnalyzerAsync(sampleProgram);
         }
     }
 }
