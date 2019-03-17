@@ -6,12 +6,67 @@ using System.Threading;
 using Analyzer.Utilities;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers;
 
 namespace Microsoft.CodeAnalysis.CSharp.PerformanceSensitiveAnalyzers
 {
 
-    [DiagnosticAnalyzer(LanguageNames.CSharp)]
+    [DiagnosticAnalyzer(LanguageNames.CSharp, LanguageNames.VisualBasic)]
+    internal sealed class TypeConversionAllocationAnalyzer1 : AbstractAllocationAnalyzer
+    {
+        private static readonly object[] EmptyMessageArgs = Array.Empty<object>();
+
+        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
+            TypeConversionAllocationAnalyzer.ValueTypeToReferenceTypeConversionRule,
+            TypeConversionAllocationAnalyzer.MethodGroupAllocationRule,
+            TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule);
+
+        protected override ImmutableArray<OperationKind> Operations => ImmutableArray.Create(
+            OperationKind.Conversion,
+            OperationKind.Interpolation,
+            OperationKind.DelegateCreation);
+
+        protected override void AnalyzeNode(OperationAnalysisContext context, in PerformanceSensitiveInfo info)
+        {
+            if (context.Operation is IDelegateCreationOperation delegateCreation)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(TypeConversionAllocationAnalyzer.MethodGroupAllocationRule, context.Operation.Syntax.GetLocation(), EmptyMessageArgs));
+
+                if (delegateCreation.Target is IMethodReferenceOperation methodReference &&
+                    methodReference.Instance.Type.IsValueType)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(TypeConversionAllocationAnalyzer.DelegateOnStructInstanceRule, methodReference.Syntax.GetLocation(), EmptyMessageArgs));
+                }
+
+                return;
+            }
+
+            if (context.Operation is IInterpolationOperation interpolation)
+            {
+                if (interpolation.Expression.Type.IsValueType)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(TypeConversionAllocationAnalyzer.ValueTypeToReferenceTypeConversionRule, interpolation.Expression.Syntax.GetLocation(), EmptyMessageArgs));
+                }
+
+                return;
+            }
+
+            if (context.Operation.Type.IsReferenceType && context.Operation is IConversionOperation conversion)
+            {
+                if (conversion.Operand.Type.IsValueType && conversion.OperatorMethod == null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        TypeConversionAllocationAnalyzer.ValueTypeToReferenceTypeConversionRule,
+                        conversion.Operand.Syntax.GetLocation(),
+                        EmptyMessageArgs));
+                }
+
+                return;
+            }
+        }
+    }
+        [DiagnosticAnalyzer(LanguageNames.CSharp)]
     internal sealed class TypeConversionAllocationAnalyzer : AbstractAllocationAnalyzer<SyntaxKind>
     {
         public const string ValueTypeToReferenceTypeConversionRuleId = "HAA0601";
